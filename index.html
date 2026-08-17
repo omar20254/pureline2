@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pure Line | نظام إدارة مزرعة الرومي</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@500;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          forest: { DEFAULT:'#16342A', light:'#234C3D', dark:'#0E241C' },
+          wheat: { DEFAULT:'#C89B3C', light:'#E6C878', dark:'#9A7526' },
+          barn: { DEFAULT:'#8C3B2E', light:'#B15642' },
+          cream: '#FAF6EF',
+          ink: '#211D17',
+          line: '#E4DCC8'
+        },
+        fontFamily: {
+          display: ['"El Messiri"','sans-serif'],
+          body: ['"Tajawal"','sans-serif']
+        }
+      }
+    }
+  }
+</script>
+<style>
+  * { font-family: 'Tajawal', sans-serif; }
+  h1,h2,h3,.display { font-family: 'El Messiri', sans-serif; }
+  body { background-color: #FAF6EF; color:#211D17; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#C89B3C55; border-radius:8px; }
+  .feather-divider{
+    background-image: repeating-linear-gradient(90deg,#C89B3C 0 10px, transparent 10px 20px);
+    height:2px; opacity:.55;
+  }
+  .track-bg{
+    background-image: radial-gradient(#C89B3C22 1.5px, transparent 1.5px);
+    background-size: 16px 16px;
+  }
+  .card{ background:#fff; border:1px solid #E4DCC8; border-radius:1rem; }
+  .btn{ transition:.15s ease; }
+  .btn:active{ transform: translateY(1px); }
+  .view{ animation: fadeUp .35s ease both; }
+  @keyframes fadeUp{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+  input[type=number]::-webkit-inner-spin-button{ opacity:1; }
+  .navbtn.active{ background:#C89B3C; color:#16342A; font-weight:800; }
+  .navbtn.active svg{ color:#16342A; }
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position:absolute; top:0; right:0; left:0; margin:0 auto; }
+    #app, #loginScreen, #modalRoot, #toastRoot { display:none !important; }
+  }
+  #printArea{ display:none; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center track-bg px-4">
+  <div class="w-full max-w-sm">
+    <div class="card shadow-xl p-8">
+      <div class="flex flex-col items-center gap-3 mb-6">
+        <img src="https://h.top4top.io/p_3881ecrwf0.jpg" alt="Pure Line" class="w-20 h-20 rounded-full object-cover ring-4 ring-wheat/40">
+        <h1 class="text-2xl text-forest font-bold">Pure Line</h1>
+        <p class="text-sm text-ink/60">نظام إدارة استلام وتوزيع كتاكيت الرومي</p>
+      </div>
+      <div class="feather-divider mb-6"></div>
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-bold mb-1.5 text-forest">اسم المستخدم</label>
+          <input id="loginUser" type="text" required autocomplete="username"
+            class="w-full border border-line rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="admin">
+        </div>
+        <div>
+          <label class="block text-sm font-bold mb-1.5 text-forest">كلمة المرور</label>
+          <input id="loginPass" type="password" required autocomplete="current-password"
+            class="w-full border border-line rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="••••">
+        </div>
+        <p id="loginError" class="text-barn text-sm font-bold hidden">بيانات الدخول غير صحيحة</p>
+        <button type="submit" class="btn w-full bg-forest text-cream font-bold py-3 rounded-xl hover:bg-forest-light">
+          تسجيل الدخول
+        </button>
+      </form>
+    </div>
+    <p class="text-center text-xs text-ink/40 mt-4">جميع الحقوق محفوظة © Pure Line</p>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="app" class="hidden min-h-screen md:flex">
+
+  <!-- Mobile overlay -->
+  <div id="sidebarOverlay" class="hidden fixed inset-0 bg-ink/50 z-30 md:hidden"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="w-72 md:w-64 bg-forest text-cream flex flex-col shrink-0 min-h-screen
+    fixed md:static inset-y-0 right-0 z-40 translate-x-full md:translate-x-0 transition-transform duration-300 ease-out">
+    <div class="p-5 flex items-center gap-3 border-b border-white/10">
+      <img src="https://h.top4top.io/p_3881ecrwf0.jpg" class="w-11 h-11 rounded-full object-cover ring-2 ring-wheat/60 shrink-0">
+      <div class="min-w-0">
+        <div class="font-display font-bold text-lg leading-none">Pure Line</div>
+        <div id="roleLabel" class="text-xs text-wheat mt-1"></div>
+      </div>
+      <button id="closeSidebarBtn" class="md:hidden ms-auto text-cream/70 hover:text-cream p-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <nav id="navList" class="flex-1 py-4 px-3 space-y-1 overflow-y-auto"></nav>
+    <div class="p-3 border-t border-white/10">
+      <div id="cloudStatus" class="flex items-center gap-2 text-xs text-wheat/90 px-2 mb-3">
+        <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0"></span>
+        <span id="cloudStatusText">متصل بالسحابة — جاري المزامنة</span>
+      </div>
+      <button id="logoutBtn" class="btn w-full text-sm font-bold bg-barn/90 hover:bg-barn rounded-lg py-2.5">تسجيل الخروج</button>
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <main class="flex-1 min-h-screen min-w-0">
+    <header class="bg-white border-b border-line px-4 md:px-6 py-4 flex items-center gap-3 sticky top-0 z-10">
+      <button id="openSidebarBtn" class="md:hidden text-forest p-1 shrink-0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h2 id="viewTitle" class="text-lg md:text-xl text-forest font-bold display truncate flex-1"></h2>
+      <div class="text-xs md:text-sm text-ink/50 truncate max-w-[40%]" id="headerUser"></div>
+    </header>
+    <div id="viewRoot" class="p-4 md:p-6"></div>
+  </main>
+</div>
+
+<!-- Modal root -->
+<div id="modalRoot"></div>
+<!-- Toast root -->
+<div id="toastRoot" class="fixed bottom-5 left-5 z-[100] space-y-2"></div>
+<!-- Hidden print area -->
+<div id="printArea"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDLDJc-lI1K_AqYqdrpIVi_bN3okOdib9k",
+  authDomain: "pureline-fd6d3.firebaseapp.com",
+  projectId: "pureline-fd6d3",
+  storageBucket: "pureline-fd6d3.firebasestorage.app",
+  messagingSenderId: "695712970221",
+  appId: "1:695712970221:web:4c089aa99448c263cc63e4",
+  measurementId: "G-HCV4QW0ZWD"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const dbCloud = getFirestore(fbApp);
+const PURE_LINE_DOC = doc(dbCloud, "pureline", "main");
+
+const SESSION_KEY = 'pureline_session_v1';
+
+function seedDB(){
+  return {
+    users: [
+      { username:'admin', password:'2003', role:'admin', label:'مسؤول الاستلام والتوزيع' },
+      { username:'admin', password:'365',  role:'owner', label:'الأونر' }
+    ],
+    settings: {
+      companyName: 'Pure Line',
+      whatsapp: '201205690067',
+      deliveryTerms: 'يتم تسليم الكتاكيت بحالة سليمة، ويلتزم المستلم بمراجعة العدد عند الاستلام.',
+      notes: '',
+      thresholdAlert: 200,
+      lastSync: new Date().toISOString()
+    },
+    batches: [],
+    distributions: [],
+    losses: [],
+    auditLog: [],
+    seq: 1
+  };
+}
+
+let DB = seedDB();
+let CURRENT_USER = null;
+try{ CURRENT_USER = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); }catch(e){ CURRENT_USER = null; }
+
+function saveDB(db){
+  db.settings.lastSync = new Date().toISOString();
+  setDoc(PURE_LINE_DOC, db).catch(err => {
+    console.error("خطأ المزامنة بالسحابة:", err);
+    toast('تعذر حفظ البيانات أونلاين', 'err');
+  });
+}
+
+// المزامنة اللحظية مع الفايربيس
+onSnapshot(PURE_LINE_DOC, (snapshot) => {
+  if (snapshot.exists()) {
+    DB = snapshot.data();
+  } else {
+    DB = seedDB();
+    saveDB(DB);
+  }
+  const statusEl = document.getElementById('cloudStatusText');
+  if(statusEl) statusEl.textContent = 'متصل بالسحابة — البيانات محفوظة';
+  if (CURRENT_USER) {
+    navigate(CURRENT_VIEW);
+  }
+}, (error) => {
+  const statusEl = document.getElementById('cloudStatusText');
+  if(statusEl) statusEl.textContent = 'خطأ في الاتصال بالسحابة';
+});
+
+/* ---------------------------- utilities ---------------------------- */
+function uid(prefix){ const id = (DB.seq++).toString().padStart(5,'0'); saveDB(DB); return `${prefix}-${id}`; }
+function nowISO(){ return new Date().toISOString(); }
+function fmtDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleString('ar-EG', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+function esc(s){ return (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function computeStock(){
+  const received = DB.batches.reduce((s,b)=>s+Number(b.quantity||0),0);
+  const distributed = DB.distributions.reduce((s,d)=>s+Number(d.quantity||0),0);
+  const lost = DB.losses.reduce((s,l)=>s+Number(l.quantity||0),0);
+  return { received, distributed, lost, available: received - distributed - lost };
+}
+
+function logAudit(action, entity, details){
+  DB.auditLog.unshift({
+    id: uid('LOG'),
+    action, entity, details,
+    user: CURRENT_USER ? `${CURRENT_USER.username} (${roleLabel(CURRENT_USER.role)})` : 'نظام',
+    timestamp: nowISO()
+  });
+  saveDB(DB);
+}
+
+function roleLabel(role){ return role === 'owner' ? 'الأونر' : 'الاستلام والتوزيع'; }
+
+function toast(msg, type='ok'){
+  const root = document.getElementById('toastRoot');
+  if(!root) return;
+  const el = document.createElement('div');
+  el.className = `btn shadow-lg rounded-xl px-4 py-3 text-sm font-bold text-white ${type==='ok'?'bg-forest':'bg-barn'}`;
+  el.style.animation = 'fadeUp .25s ease';
+  el.textContent = msg;
+  root.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 2400);
+}
+
+function openModal(html){
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="fixed inset-0 bg-ink/50 z-50 flex items-center justify-center p-4" id="modalOverlay">
+      <div class="bg-cream w-full max-w-lg rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        ${html}
+      </div>
+    </div>`;
+  document.getElementById('modalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='modalOverlay') closeModal(); });
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+
+/* ------------------------------ icons ------------------------------ */
+const ICONS = {
+  dashboard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>`,
+  receive: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M3 7l9-4 9 4-9 4-9-4Z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>`,
+  distribute: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M3 12h13"/><path d="M12 5l7 7-7 7"/><circle cx="19" cy="12" r="1.5"/></svg>`,
+  loss: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
+  records: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M4 4h16v4H4z"/><path d="M4 10h16v10H4z"/><path d="M8 14h8M8 18h5"/></svg>`,
+  owner: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M12 3l2.6 5.2 5.8.8-4.2 4 1 5.7L12 16l-5.2 2.7 1-5.7-4.2-4 5.8-.8L12 3Z"/></svg>`,
+  whatsapp: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M20.5 3.5A11 11 0 0 0 3.6 17.3L2 22l4.8-1.6A11 11 0 1 0 20.5 3.5Zm-8.5 17a9 9 0 0 1-4.6-1.3l-.3-.2-3.2 1 1-3.1-.2-.3A9 9 0 1 1 12 20.5Zm5-6.7c-.3-.1-1.6-.8-1.8-.9-.2-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.1.2-.3.2-.6.1-.3-.1-1.2-.4-2.2-1.4-.8-.7-1.4-1.6-1.6-1.9-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.3-.4.1-.2 0-.4 0-.5C10.6 9 10 7.6 9.8 7c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s1 2.6 1.1 2.7c.1.2 2 3 4.8 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.6-.7 1.9-1.3.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.6-.3Z"/></svg>`,
+  print: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.5"/><path d="M6 17v4h12v-4"/></svg>`,
+  wheat: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="w-4 h-4"><path d="M12 22V6M12 6c-2 0-3-1.5-3-3.5C10.5 4 12 5 12 6ZM12 6c2 0 3-1.5 3-3.5C13.5 4 12 5 12 6ZM12 10c-2 0-3-1.5-3-3.5M12 10c2 0 3-1.5 3-3.5M12 14c-2 0-3-1.5-3-3.5M12 14c2 0 3-1.5 3-3.5"/></svg>`,
+  edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/></svg>`,
+  download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>`,
+  camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M4 8h3l2-2h6l2 2h3v11H4V8Z"/><circle cx="12" cy="13.5" r="3.3"/></svg>`
+};
+
+/* ---------------------- image capture / compression ---------------------- */
+function compressImageFile(file, maxDim = 900, quality = 0.72){
+  return new Promise((resolve, reject)=>{
+    if(!file) return resolve(null);
+    if(!file.type.startsWith('image/')) return reject(new Error('الملف المختار ليس صورة'));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('تعذّرت قراءة الصورة'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('تعذّر تحميل الصورة'));
+      img.onload = () => {
+        let { width, height } = img;
+        if(width > height && width > maxDim){ height = Math.round(height * (maxDim / width)); width = maxDim; }
+        else if(height > maxDim){ width = Math.round(width * (maxDim / height)); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function openPhotoModal(dataUrl){
+  openModal(`
+    <div class="p-4">
+      <img src="${dataUrl}" class="w-full rounded-xl border border-line">
+      <button id="closePhotoModal" class="w-full text-center text-xs text-ink/40 mt-3 hover:underline">إغلاق</button>
+    </div>`);
+  document.getElementById('closePhotoModal').addEventListener('click', closeModal);
+}
+
+/* ------------------------------- nav -------------------------------- */
+const NAV = [
+  { key:'dashboard',   label:'لوحة التحكم',        icon:ICONS.dashboard, roles:['admin','owner'] },
+  { key:'receive',     label:'استلام المعمل',       icon:ICONS.receive,   roles:['admin','owner'] },
+  { key:'distribute',  label:'توزيع المبيعات',      icon:ICONS.distribute,roles:['admin','owner'] },
+  { key:'loss',        label:'تسجيل النافق',        icon:ICONS.loss,      roles:['admin','owner'] },
+  { key:'records',     label:'السجلات والتقارير',   icon:ICONS.records,   roles:['admin','owner'] },
+  { key:'owner',       label:'لوحة تحكم الأونر',    icon:ICONS.owner,     roles:['owner'] },
+];
+let CURRENT_VIEW = 'dashboard';
+
+/* ------------------------------ login -------------------------------- */
+document.getElementById('loginForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const match = DB.users.find(x=>x.username===u && x.password===p);
+  const errEl = document.getElementById('loginError');
+  if(match){
+    CURRENT_USER = { username: match.username, role: match.role };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(CURRENT_USER));
+    logAudit('تسجيل دخول', 'مستخدم', `${match.username} دخل كـ ${roleLabel(match.role)}`);
+    errEl.classList.add('hidden');
+    boot();
+  }else{
+    errEl.classList.remove('hidden');
+  }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  logAudit('تسجيل خروج', 'مستخدم', `${CURRENT_USER.username} خرج من النظام`);
+  CURRENT_USER = null;
+  sessionStorage.removeItem(SESSION_KEY);
+  location.reload();
+});
+
+/* ------------------------------- boot -------------------------------- */
+function boot(){
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('roleLabel').textContent = roleLabel(CURRENT_USER.role);
+  document.getElementById('headerUser').textContent = `${CURRENT_USER.username} — ${roleLabel(CURRENT_USER.role)}`;
+  renderNav();
+  navigate('dashboard');
+}
+
+function renderNav(){
+  const list = document.getElementById('navList');
+  list.innerHTML = NAV.filter(n=>n.roles.includes(CURRENT_USER.role)).map(n=>`
+    <button data-nav="${n.key}" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-cream/85 hover:bg-white/10 transition">
+      ${n.icon}<span>${n.label}</span>
+    </button>`).join('');
+  list.querySelectorAll('[data-nav]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ navigate(btn.dataset.nav); closeSidebar(); });
+  });
+}
+
+/* ------------------------- mobile sidebar drawer ------------------------- */
+function openSidebar(){
+  document.getElementById('sidebar').classList.remove('translate-x-full');
+  document.getElementById('sidebarOverlay').classList.remove('hidden');
+}
+function closeSidebar(){
+  if(window.innerWidth >= 768) return;
+  document.getElementById('sidebar').classList.add('translate-x-full');
+  document.getElementById('sidebarOverlay').classList.add('hidden');
+}
+document.getElementById('openSidebarBtn').addEventListener('click', openSidebar);
+document.getElementById('closeSidebarBtn').addEventListener('click', closeSidebar);
+document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
+
+function navigate(key){
+  CURRENT_VIEW = key;
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.nav===key));
+  const nav = NAV.find(n=>n.key===key);
+  document.getElementById('viewTitle').textContent = nav ? nav.label : '';
+  const root = document.getElementById('viewRoot');
+  root.innerHTML = `<div class="view">${VIEWS[key]()}</div>`;
+  attachViewHandlers(key);
+}
+
+/* =========================================================================
+   VIEWS
+   ========================================================================= */
+const VIEWS = {
+  dashboard: renderDashboard,
+  receive: renderReceive,
+  distribute: renderDistribute,
+  loss: renderLoss,
+  records: renderRecords,
+  owner: renderOwner
+};
+
+function statCard(label, value, color, icon){
+  return `
+  <div class="card p-5 flex items-center justify-between">
+    <div>
+      <div class="text-sm text-ink/50 font-bold mb-1">${label}</div>
+      <div class="text-3xl font-black" style="color:${color}">${value.toLocaleString('ar-EG')}</div>
+    </div>
+    <div class="w-12 h-12 rounded-2xl flex items-center justify-center" style="background:${color}1A;color:${color}">${icon}</div>
+  </div>`;
+}
+
+function renderDashboard(){
+  const s = computeStock();
+  const low = s.available <= DB.settings.thresholdAlert;
+  const recent = [
+    ...DB.batches.map(b=>({type:'استلام', label:`دفعة ${b.batchNumber}`, qty:b.quantity, date:b.createdAt, color:'#16342A'})),
+    ...DB.distributions.map(d=>({type:'توزيع', label:d.buyerName, qty:-d.quantity, date:d.createdAt, color:'#8C3B2E'})),
+    ...DB.losses.map(l=>({type:'نافق', label:l.notes||'فاقد', qty:-l.quantity, date:l.createdAt, color:'#9A7526'})),
+  ].sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,8);
+
+  return `
+  ${low ? `
+  <div class="mb-5 bg-barn/10 border border-barn/30 text-barn font-bold rounded-xl px-4 py-3 flex items-center gap-2">
+    ${ICONS.loss} تنبيه: المخزون المتاح (${s.available.toLocaleString('ar-EG')}) وصل إلى حد التنبيه (${DB.settings.thresholdAlert.toLocaleString('ar-EG')}) أو أقل.
+  </div>`: ''}
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    ${statCard('إجمالي المستلم', s.received, '#16342A', ICONS.receive)}
+    ${statCard('إجمالي الموزع', s.distributed, '#8C3B2E', ICONS.distribute)}
+    ${statCard('المخزون المتاح', s.available, '#C89B3C', ICONS.wheat)}
+    ${statCard('إجمالي الفاقد', s.lost, '#6B7280', ICONS.loss)}
+  </div>
+  <div class="card p-5">
+    <h3 class="font-bold text-forest mb-4">آخر الحركات</h3>
+    ${recent.length===0 ? `<p class="text-ink/40 text-sm">لا توجد حركات بعد.</p>` : `
+    <div class="space-y-2">
+      ${recent.map(r=>`
+        <div class="flex items-center justify-between border-b border-line/70 last:border-0 py-2.5 text-sm">
+          <div class="flex items-center gap-3">
+            <span class="w-2 h-2 rounded-full" style="background:${r.color}"></span>
+            <span class="font-bold">${esc(r.type)}</span>
+            <span class="text-ink/50">${esc(r.label)}</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="font-black" style="color:${r.qty<0?'#8C3B2E':'#16342A'}">${r.qty<0?'':'+'}${r.qty.toLocaleString('ar-EG')}</span>
+            <span class="text-ink/40 text-xs">${fmtDate(r.date)}</span>
+          </div>
+        </div>`).join('')}
+    </div>`}
+  </div>`;
+}
+
+function renderReceive(){
+  const rows = [...DB.batches].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  return `
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="card p-5 lg:col-span-1 h-fit">
+      <h3 class="font-bold text-forest mb-4">تسجيل دفعة جديدة من المعمل</h3>
+      <form id="receiveForm" class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-ink/60">رقم الدفعة</label>
+          <input name="batchNumber" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="مثال: B-2026-014">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">مصدر المعمل / المفرخة</label>
+          <input name="source" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="اسم المعمل">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">الكمية المستلمة</label>
+          <input name="quantity" type="number" min="1" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="0">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">ملاحظات</label>
+          <textarea name="notes" rows="2" class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat"></textarea>
+        </div>
+        <button class="btn w-full bg-forest text-cream font-bold py-2.5 rounded-lg hover:bg-forest-light">تسجيل الاستلام</button>
+      </form>
+    </div>
+    <div class="card p-5 lg:col-span-2">
+      <h3 class="font-bold text-forest mb-4">دفعات المعمل المسجّلة</h3>
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm text-right">
+        <thead><tr class="text-ink/50 border-b border-line">
+          <th class="py-2">رقم الدفعة</th><th>المصدر</th><th>الكمية</th><th>التاريخ</th>
+        </tr></thead>
+        <tbody>
+        ${rows.length===0? `<tr><td colspan="4" class="py-6 text-center text-ink/40">لا توجد دفعات بعد</td></tr>` :
+          rows.map(b=>`
+          <tr class="border-b border-line/60">
+            <td class="py-2.5 font-bold">${esc(b.batchNumber)}</td>
+            <td>${esc(b.source)}</td>
+            <td class="font-black text-forest">${Number(b.quantity).toLocaleString('ar-EG')}</td>
+            <td class="text-ink/40 text-xs">${fmtDate(b.createdAt)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderDistribute(){
+  const s = computeStock();
+  const rows = [...DB.distributions].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,10);
+  return `
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="card p-5 lg:col-span-1 h-fit">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-forest">توزيع دفعة للمشتري</h3>
+        <span class="text-xs font-bold bg-wheat/20 text-wheat-dark px-2.5 py-1 rounded-full">المتاح: ${s.available.toLocaleString('ar-EG')}</span>
+      </div>
+      <form id="distributeForm" class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-ink/60">اسم المشتري</label>
+          <input name="buyerName" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">رقم الهاتف</label>
+          <input name="phone" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="01xxxxxxxxx">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">عدد الكتاكيت</label>
+          <input name="quantity" type="number" min="1" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">اسم السائق / سيارة النقل</label>
+          <input name="driver" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">ملاحظات</label>
+          <textarea name="notes" rows="2" class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat"></textarea>
+        </div>
+        <button class="btn w-full bg-barn text-cream font-bold py-2.5 rounded-lg hover:bg-barn-light">تم — إنشاء إذن التسليم</button>
+      </form>
+    </div>
+    <div class="card p-5 lg:col-span-2">
+      <h3 class="font-bold text-forest mb-4">آخر عمليات التوزيع</h3>
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm text-right">
+        <thead><tr class="text-ink/50 border-b border-line">
+          <th class="py-2">المشتري</th><th>الهاتف</th><th>الكمية</th><th>السائق</th><th></th>
+        </tr></thead>
+        <tbody>
+        ${rows.length===0? `<tr><td colspan="5" class="py-6 text-center text-ink/40">لا توجد عمليات توزيع بعد</td></tr>` :
+          rows.map(d=>`
+          <tr class="border-b border-line/60">
+            <td class="py-2.5 font-bold">${esc(d.buyerName)}</td>
+            <td class="text-ink/60">${esc(d.phone)}</td>
+            <td class="font-black text-barn">${Number(d.quantity).toLocaleString('ar-EG')}</td>
+            <td class="text-ink/60">${esc(d.driver)}</td>
+            <td><button data-slip="${d.id}" class="text-xs font-bold text-forest hover:underline">عرض الإذن</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderLoss(){
+  const s = computeStock();
+  const rows = [...DB.losses].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  return `
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="card p-5 lg:col-span-1 h-fit">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-forest">تسجيل نافق / فاقد</h3>
+        <span class="text-xs font-bold bg-wheat/20 text-wheat-dark px-2.5 py-1 rounded-full">المتاح: ${s.available.toLocaleString('ar-EG')}</span>
+      </div>
+      <form id="lossForm" class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-ink/60">العدد النافق</label>
+          <input name="quantity" type="number" min="1" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">ملاحظات / السبب</label>
+          <textarea name="notes" rows="3" class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat"></textarea>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">تصوير النافق (اختياري)</label>
+          <label for="lossPhotoInput" class="mt-1 flex items-center justify-center gap-2 border-2 border-dashed border-line rounded-lg py-4 cursor-pointer hover:bg-cream text-ink/50 text-sm font-bold">
+            ${ICONS.camera} <span>التقاط / اختيار صورة</span>
+          </label>
+          <input id="lossPhotoInput" name="photo" type="file" accept="image/*" capture="environment" class="hidden">
+          <div id="lossPhotoPreviewWrap" class="hidden mt-2 relative w-24">
+            <img id="lossPhotoPreview" class="w-24 h-24 object-cover rounded-lg border border-line">
+            <button type="button" id="lossPhotoRemove" class="absolute -top-2 -right-2 bg-barn text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">✕</button>
+          </div>
+        </div>
+        <button class="btn w-full bg-ink text-cream font-bold py-2.5 rounded-lg hover:bg-ink/90">تسجيل الفاقد</button>
+      </form>
+    </div>
+    <div class="card p-5 lg:col-span-2">
+      <h3 class="font-bold text-forest mb-4">سجل الفاقد</h3>
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm text-right">
+        <thead><tr class="text-ink/50 border-b border-line">
+          <th class="py-2">العدد</th><th>الملاحظات</th><th>الصورة</th><th>التاريخ</th>
+        </tr></thead>
+        <tbody>
+        ${rows.length===0? `<tr><td colspan="4" class="py-6 text-center text-ink/40">لا يوجد فاقد مسجل</td></tr>` :
+          rows.map(l=>`
+          <tr class="border-b border-line/60">
+            <td class="py-2.5 font-black text-barn">${Number(l.quantity).toLocaleString('ar-EG')}</td>
+            <td class="text-ink/60">${esc(l.notes||'—')}</td>
+            <td>${l.photo ? `<img data-viewphoto="${l.id}" src="${l.photo}" class="w-10 h-10 object-cover rounded-lg border border-line cursor-pointer">` : `<span class="text-ink/30 text-xs">—</span>`}</td>
+            <td class="text-ink/40 text-xs">${fmtDate(l.createdAt)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderRecords(){
+  return `
+  <div class="card p-5 mb-4">
+    <div class="flex flex-wrap items-end gap-3">
+      <div>
+        <label class="text-xs font-bold text-ink/60">نوع السجل</label>
+        <select id="recType" class="border border-line rounded-lg px-3 py-2 mt-1">
+          <option value="distributions">التوزيع</option>
+          <option value="batches">الاستلام</option>
+          <option value="losses">الفاقد</option>
+        </select>
+      </div>
+      <div class="flex-1 min-w-[180px]">
+        <label class="text-xs font-bold text-ink/60">بحث (اسم المشتري / رقم الدفعة)</label>
+        <input id="recSearch" class="w-full border border-line rounded-lg px-3 py-2 mt-1" placeholder="اكتب للبحث...">
+      </div>
+      <button id="exportCsvBtn" class="btn flex items-center gap-2 bg-wheat text-forest font-bold px-4 py-2.5 rounded-lg hover:bg-wheat-light">
+        ${ICONS.download} تصدير CSV
+      </button>
+    </div>
+  </div>
+  <div class="card p-5">
+    <div id="recTableWrap" class="overflow-x-auto"></div>
+  </div>`;
+}
+
+function recordColumns(type){
+  if(type==='distributions') return [
+    {k:'buyerName', l:'المشتري'}, {k:'phone', l:'الهاتف'}, {k:'quantity', l:'الكمية'},
+    {k:'driver', l:'السائق'}, {k:'notes', l:'ملاحظات'}, {k:'createdAt', l:'التاريخ', fmt:fmtDate}
+  ];
+  if(type==='batches') return [
+    {k:'batchNumber', l:'رقم الدفعة'}, {k:'source', l:'المصدر'}, {k:'quantity', l:'الكمية'},
+    {k:'notes', l:'ملاحظات'}, {k:'createdAt', l:'التاريخ', fmt:fmtDate}
+  ];
+  return [
+    {k:'quantity', l:'الكمية'}, {k:'notes', l:'ملاحظات'}, {k:'createdAt', l:'التاريخ', fmt:fmtDate}
+  ];
+}
+
+function renderRecordsTable(){
+  const type = document.getElementById('recType').value;
+  const q = document.getElementById('recSearch').value.trim().toLowerCase();
+  const cols = recordColumns(type);
+  const isOwner = CURRENT_USER.role === 'owner';
+  let rows = [...DB[type]].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  if(q){
+    rows = rows.filter(r => JSON.stringify(r).toLowerCase().includes(q));
+  }
+  const showPhoto = type === 'losses';
+  const extraCols = (isOwner?1:0) + (showPhoto?1:0);
+  const wrap = document.getElementById('recTableWrap');
+  wrap.innerHTML = `
+  <table class="w-full text-sm text-right">
+    <thead><tr class="text-ink/50 border-b border-line">
+      ${cols.map(c=>`<th class="py-2">${c.l}</th>`).join('')}
+      ${showPhoto? `<th>الصورة</th>`:''}
+      ${isOwner? `<th></th>`:''}
+    </tr></thead>
+    <tbody>
+    ${rows.length===0? `<tr><td colspan="${cols.length+extraCols}" class="py-6 text-center text-ink/40">لا توجد نتائج</td></tr>` :
+      rows.map(r=>`
+      <tr class="border-b border-line/60" data-row="${r.id}">
+        ${cols.map(c=>`<td class="py-2.5">${c.fmt? c.fmt(r[c.k]) : esc(r[c.k] ?? '—')}</td>`).join('')}
+        ${showPhoto? `<td>${r.photo? `<img data-viewphoto="${r.id}" src="${r.photo}" class="w-9 h-9 object-cover rounded-lg border border-line cursor-pointer">` : `<span class="text-ink/30 text-xs">—</span>`}</td>`:''}
+        ${isOwner? `
+        <td class="whitespace-nowrap">
+          <button data-edit="${type}:${r.id}" class="text-forest hover:opacity-70 ms-1" title="تعديل">${ICONS.edit}</button>
+          <button data-del="${type}:${r.id}" class="text-barn hover:opacity-70 ms-2" title="حذف">${ICONS.trash}</button>
+        </td>`:''}
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+
+  if(showPhoto){
+    wrap.querySelectorAll('[data-viewphoto]').forEach(img=>{
+      img.addEventListener('click', ()=>{
+        const rec = DB.losses.find(l=>l.id===img.dataset.viewphoto);
+        if(rec && rec.photo) openPhotoModal(rec.photo);
+      });
+    });
+  }
+
+  if(isOwner){
+    wrap.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>{
+      const [t,id] = b.dataset.edit.split(':'); openEditRecord(t,id);
+    }));
+    wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{
+      const [t,id] = b.dataset.del.split(':'); deleteRecord(t,id);
+    }));
+  }
+}
+
+function openEditRecord(type, id){
+  const rec = DB[type].find(r=>r.id===id);
+  if(!rec) return;
+  const cols = recordColumns(type).filter(c=>c.k!=='createdAt');
+  const showPhoto = type === 'losses';
+  let editPhotoData = rec.photo || null;
+  openModal(`
+    <div class="p-6">
+      <h3 class="font-bold text-forest text-lg mb-4">تعديل السجل</h3>
+      <form id="editRecordForm" class="space-y-3">
+        ${cols.map(c=>`
+          <div>
+            <label class="text-xs font-bold text-ink/60">${c.l}</label>
+            <input name="${c.k}" value="${esc(rec[c.k])}" class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+          </div>`).join('')}
+        ${showPhoto? `
+        <div>
+          <label class="text-xs font-bold text-ink/60">الصورة</label>
+          <div class="flex items-center gap-3 mt-1">
+            <div id="editPhotoPreviewWrap" class="${editPhotoData? '' : 'hidden'}">
+              <img id="editPhotoPreview" src="${editPhotoData||''}" class="w-16 h-16 object-cover rounded-lg border border-line">
+            </div>
+            <label for="editPhotoInput" class="flex-1 flex items-center justify-center gap-2 border-2 border-dashed border-line rounded-lg py-3 cursor-pointer hover:bg-cream text-ink/50 text-xs font-bold">
+              ${ICONS.camera} <span>${editPhotoData? 'استبدال الصورة' : 'إضافة صورة'}</span>
+            </label>
+            <input id="editPhotoInput" type="file" accept="image/*" capture="environment" class="hidden">
+            ${editPhotoData? `<button type="button" id="editPhotoRemove" class="text-barn text-xs font-bold">حذف</button>`:''}
+          </div>
+        </div>`:''}
+        <div class="flex gap-2 pt-2">
+          <button type="submit" class="btn flex-1 bg-forest text-cream font-bold py-2.5 rounded-lg">حفظ التعديلات</button>
+          <button type="button" id="cancelEdit" class="btn px-4 rounded-lg border border-line font-bold">إلغاء</button>
+        </div>
+      </form>
+    </div>`);
+  document.getElementById('cancelEdit').addEventListener('click', closeModal);
+  if(showPhoto){
+    document.getElementById('editPhotoInput').addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      try{
+        editPhotoData = await compressImageFile(file);
+        const wrap = document.getElementById('editPhotoPreviewWrap');
+        document.getElementById('editPhotoPreview').src = editPhotoData;
+        wrap.classList.remove('hidden');
+      }catch(err){ toast(err.message || 'تعذّر تحميل الصورة', 'err'); }
+    });
+    const removeBtn = document.getElementById('editPhotoRemove');
+    if(removeBtn) removeBtn.addEventListener('click', ()=>{
+      editPhotoData = null;
+      document.getElementById('editPhotoPreviewWrap').classList.add('hidden');
+    });
+  }
+  document.getElementById('editRecordForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const before = JSON.stringify(rec);
+    for(const [k,v] of fd.entries()){ rec[k] = (k==='quantity') ? Number(v) : v; }
+    if(showPhoto){ rec.photo = editPhotoData; }
+    saveDB(DB);
+    logAudit('تعديل سجل', type, `${id} — قبل: ${before}`);
+    toast('تم حفظ التعديلات');
+    closeModal();
+    renderRecordsTable();
+    navigate(CURRENT_VIEW);
+  });
+}
+
+function deleteRecord(type, id){
+  openModal(`
+    <div class="p-6 text-center">
+      <h3 class="font-bold text-barn text-lg mb-2">تأكيد الحذف</h3>
+      <p class="text-ink/60 mb-5">هل أنت متأكد من حذف هذا السجل؟ لا يمكن التراجع عن هذه الخطوة.</p>
+      <div class="flex gap-2">
+        <button id="confirmDel" class="btn flex-1 bg-barn text-cream font-bold py-2.5 rounded-lg">حذف نهائي</button>
+        <button id="cancelDel" class="btn px-4 rounded-lg border border-line font-bold">إلغاء</button>
+      </div>
+    </div>`);
+  document.getElementById('cancelDel').addEventListener('click', closeModal);
+  document.getElementById('confirmDel').addEventListener('click', ()=>{
+    const rec = DB[type].find(r=>r.id===id);
+    DB[type] = DB[type].filter(r=>r.id!==id);
+    saveDB(DB);
+    logAudit('حذف سجل', type, `${id} — ${JSON.stringify(rec)}`);
+    toast('تم حذف السجل');
+    closeModal();
+    navigate(CURRENT_VIEW);
+  });
+}
+
+function renderOwner(){
+  return `
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <div class="card p-5">
+      <h3 class="font-bold text-forest mb-1">حالة المزامنة السحابية</h3>
+      <p class="text-xs text-ink/50 mb-4">آخر مزامنة: ${fmtDate(DB.settings.lastSync)}</p>
+      <div class="flex items-center gap-2 bg-green-50 text-green-700 font-bold rounded-lg px-4 py-3 mb-3">
+        <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span> متصل بالسحابة (Firebase) — البيانات محفوظة أونلاين
+      </div>
+      <button id="syncNowBtn" class="btn w-full border border-line font-bold py-2 rounded-lg hover:bg-cream">مزامنة الآن</button>
+    </div>
+
+    <div class="card p-5">
+      <h3 class="font-bold text-forest mb-4">إعدادات الشركة</h3>
+      <form id="settingsForm" class="space-y-3">
+        <div>
+          <label class="text-xs font-bold text-ink/60">اسم الشركة</label>
+          <input name="companyName" value="${esc(DB.settings.companyName)}" class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">رقم واتساب (بدون +)</label>
+          <input name="whatsapp" value="${esc(DB.settings.whatsapp)}" class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">حد التنبيه للمخزون</label>
+          <input name="thresholdAlert" type="number" value="${DB.settings.thresholdAlert}" class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">شروط التسليم</label>
+          <textarea name="deliveryTerms" rows="2" class="w-full border border-line rounded-lg px-3 py-2 mt-1">${esc(DB.settings.deliveryTerms)}</textarea>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">ملاحظات عامة</label>
+          <textarea name="notes" rows="2" class="w-full border border-line rounded-lg px-3 py-2 mt-1">${esc(DB.settings.notes)}</textarea>
+        </div>
+        <button class="btn w-full bg-forest text-cream font-bold py-2.5 rounded-lg">حفظ الإعدادات</button>
+      </form>
+    </div>
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-forest">المستخدمون</h3>
+      </div>
+      <div class="space-y-2 mb-4">
+        ${DB.users.map((u,i)=>`
+        <div class="flex items-center justify-between border border-line rounded-lg px-3 py-2 text-sm">
+          <div><span class="font-bold">${esc(u.username)}</span> <span class="text-ink/40">— ${roleLabel(u.role)}</span></div>
+          <button data-edituser="${i}" class="text-forest text-xs font-bold hover:underline">تغيير كلمة المرور</button>
+        </div>`).join('')}
+      </div>
+      <button id="addUserBtn" class="btn w-full border border-dashed border-line font-bold py-2 rounded-lg hover:bg-cream text-sm">+ إضافة مستخدم جديد</button>
+    </div>
+
+    <div class="card p-5">
+      <h3 class="font-bold text-forest mb-4">سجل النشاط (Audit Log)</h3>
+      <div class="max-h-72 overflow-y-auto space-y-2 pl-1">
+        ${DB.auditLog.length===0? `<p class="text-ink/40 text-sm">لا يوجد نشاط بعد.</p>` :
+          DB.auditLog.slice(0,60).map(l=>`
+          <div class="text-xs border-b border-line/60 pb-2">
+            <div class="flex justify-between">
+              <span class="font-bold text-forest">${esc(l.action)}</span>
+              <span class="text-ink/40">${fmtDate(l.timestamp)}</span>
+            </div>
+            <div class="text-ink/50 mt-0.5">${esc(l.user)} — ${esc(l.entity)}: ${esc((l.details||'').slice(0,120))}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* =========================================================================
+   VIEW HANDLERS
+   ========================================================================= */
+function attachViewHandlers(key){
+  if(key==='receive'){
+    document.getElementById('receiveForm').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const rec = {
+        id: uid('BAT'),
+        batchNumber: fd.get('batchNumber').trim(),
+        source: fd.get('source').trim(),
+        quantity: Number(fd.get('quantity')),
+        notes: fd.get('notes').trim(),
+        createdBy: CURRENT_USER.username,
+        createdAt: nowISO()
+      };
+      DB.batches.push(rec);
+      saveDB(DB);
+      logAudit('استلام دفعة', 'batches', `دفعة ${rec.batchNumber} — ${rec.quantity} قطعة`);
+      toast('تم تسجيل الدفعة وإضافتها للمخزون');
+      navigate('receive');
+    });
+  }
+
+  if(key==='distribute'){
+    document.getElementById('distributeForm').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const qty = Number(fd.get('quantity'));
+      const s = computeStock();
+      if(qty > s.available){
+        toast(`الكمية أكبر من المخزون المتاح (${s.available})`, 'err');
+        return;
+      }
+      const rec = {
+        id: uid('DIS'),
+        buyerName: fd.get('buyerName').trim(),
+        phone: fd.get('phone').trim(),
+        quantity: qty,
+        driver: fd.get('driver').trim(),
+        notes: fd.get('notes').trim(),
+        createdBy: CURRENT_USER.username,
+        createdAt: nowISO()
+      };
+      DB.distributions.push(rec);
+      saveDB(DB);
+      logAudit('توزيع دفعة', 'distributions', `${rec.buyerName} — ${rec.quantity} قطعة`);
+      toast('تم تسجيل عملية التوزيع');
+      e.target.reset();
+      navigate('distribute');
+      openSlipModal(rec.id);
+    });
+
+    document.querySelectorAll('[data-slip]').forEach(b=>{
+      b.addEventListener('click', ()=>openSlipModal(b.dataset.slip));
+    });
+  }
+
+  if(key==='loss'){
+    let lossPhotoData = null;
+    const photoInput = document.getElementById('lossPhotoInput');
+    const photoPreviewWrap = document.getElementById('lossPhotoPreviewWrap');
+    const photoPreview = document.getElementById('lossPhotoPreview');
+    const photoRemoveBtn = document.getElementById('lossPhotoRemove');
+
+    photoInput.addEventListener('change', async ()=>{
+      const file = photoInput.files[0];
+      if(!file) return;
+      try{
+        lossPhotoData = await compressImageFile(file);
+        photoPreview.src = lossPhotoData;
+        photoPreviewWrap.classList.remove('hidden');
+      }catch(err){
+        toast(err.message || 'تعذّر تحميل الصورة', 'err');
+        photoInput.value = '';
+      }
+    });
+    photoRemoveBtn.addEventListener('click', ()=>{
+      lossPhotoData = null;
+      photoInput.value = '';
+      photoPreviewWrap.classList.add('hidden');
+    });
+
+    document.getElementById('lossForm').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const qty = Number(fd.get('quantity'));
+      const s = computeStock();
+      if(qty > s.available){
+        toast(`العدد أكبر من المخزون المتاح (${s.available})`, 'err');
+        return;
+      }
+      const rec = {
+        id: uid('LOS'),
+        quantity: qty,
+        notes: fd.get('notes').trim(),
+        photo: lossPhotoData || null,
+        createdBy: CURRENT_USER.username,
+        createdAt: nowISO()
+      };
+      DB.losses.push(rec);
+      saveDB(DB);
+      logAudit('تسجيل فاقد', 'losses', `${rec.quantity} قطعة — ${rec.notes||''}${rec.photo? ' (بصورة)':''}`);
+      toast('تم تسجيل الفاقد');
+      navigate('loss');
+    });
+
+    document.querySelectorAll('[data-viewphoto]').forEach(img=>{
+      img.addEventListener('click', ()=>{
+        const rec = DB.losses.find(l=>l.id===img.dataset.viewphoto);
+        if(rec && rec.photo) openPhotoModal(rec.photo);
+      });
+    });
+  }
+
+  if(key==='records'){
+    renderRecordsTable();
+    document.getElementById('recType').addEventListener('change', renderRecordsTable);
+    document.getElementById('recSearch').addEventListener('input', renderRecordsTable);
+    document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
+  }
+
+  if(key==='owner'){
+    document.getElementById('syncNowBtn').addEventListener('click', ()=>{
+      saveDB(DB);
+      logAudit('مزامنة يدوية', 'settings', 'تمت المزامنة يدويًا');
+      toast('تمت المزامنة بنجاح');
+      navigate('owner');
+    });
+    document.getElementById('settingsForm').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      DB.settings.companyName = fd.get('companyName').trim();
+      DB.settings.whatsapp = fd.get('whatsapp').trim().replace(/\D/g,'');
+      DB.settings.thresholdAlert = Number(fd.get('thresholdAlert'));
+      DB.settings.deliveryTerms = fd.get('deliveryTerms').trim();
+      DB.settings.notes = fd.get('notes').trim();
+      saveDB(DB);
+      logAudit('تحديث الإعدادات', 'settings', 'تم تعديل إعدادات الشركة');
+      toast('تم حفظ الإعدادات');
+      navigate('owner');
+    });
+    document.getElementById('addUserBtn').addEventListener('click', ()=>{
+      openModal(`
+        <div class="p-6">
+          <h3 class="font-bold text-forest text-lg mb-4">إضافة مستخدم جديد</h3>
+          <form id="addUserForm" class="space-y-3">
+            <div>
+              <label class="text-xs font-bold text-ink/60">اسم المستخدم</label>
+              <input name="username" required class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+            </div>
+            <div>
+              <label class="text-xs font-bold text-ink/60">كلمة المرور</label>
+              <input name="password" required class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+            </div>
+            <div>
+              <label class="text-xs font-bold text-ink/60">الصلاحية</label>
+              <select name="role" class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+                <option value="admin">الاستلام والتوزيع</option>
+                <option value="owner">الأونر</option>
+              </select>
+            </div>
+            <div class="flex gap-2 pt-2">
+              <button type="submit" class="btn flex-1 bg-forest text-cream font-bold py-2.5 rounded-lg">إضافة</button>
+              <button type="button" id="cancelAddUser" class="btn px-4 rounded-lg border border-line font-bold">إلغاء</button>
+            </div>
+          </form>
+        </div>`);
+      document.getElementById('cancelAddUser').addEventListener('click', closeModal);
+      document.getElementById('addUserForm').addEventListener('submit', (e)=>{
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        DB.users.push({ username: fd.get('username').trim(), password: fd.get('password'), role: fd.get('role'), label: roleLabel(fd.get('role')) });
+        saveDB(DB);
+        logAudit('إضافة مستخدم', 'users', `${fd.get('username')} (${roleLabel(fd.get('role'))})`);
+        toast('تمت إضافة المستخدم');
+        closeModal();
+        navigate('owner');
+      });
+    });
+    document.querySelectorAll('[data-edituser]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const idx = Number(b.dataset.edituser);
+        const u = DB.users[idx];
+        openModal(`
+          <div class="p-6">
+            <h3 class="font-bold text-forest text-lg mb-4">تغيير كلمة مرور: ${esc(u.username)}</h3>
+            <form id="pwForm" class="space-y-3">
+              <input name="password" required placeholder="كلمة المرور الجديدة" class="w-full border border-line rounded-lg px-3 py-2 mt-1">
+              <div class="flex gap-2 pt-2">
+                <button type="submit" class="btn flex-1 bg-forest text-cream font-bold py-2.5 rounded-lg">حفظ</button>
+                <button type="button" id="cancelPw" class="btn px-4 rounded-lg border border-line font-bold">إلغاء</button>
+              </div>
+            </form>
+          </div>`);
+        document.getElementById('cancelPw').addEventListener('click', closeModal);
+        document.getElementById('pwForm').addEventListener('submit', (e)=>{
+          e.preventDefault();
+          u.password = new FormData(e.target).get('password');
+          saveDB(DB);
+          logAudit('تغيير كلمة مرور', 'users', `${u.username}`);
+          toast('تم تحديث كلمة المرور');
+          closeModal();
+          navigate('owner');
+        });
+      });
+    });
+  }
+}
+
+/* ---------------------------- delivery slip ---------------------------- */
+function buildWhatsappMessage(d){
+  return [
+    `شركة Pure Line - إيصال تسليم كتاكيت رومي`,
+    `رقم العملية: ${d.id}`,
+    `اسم المشتري: ${d.buyerName}`,
+    `العدد المستلم: ${d.quantity}`,
+    `اسم السائق: ${d.driver}`,
+    `التاريخ والوقت: ${fmtDate(d.createdAt)}`,
+    `حالة الشحنة: تم التسليم بنجاح`
+  ].join('\n');
+}
+
+function openSlipModal(distId){
+  const d = DB.distributions.find(x=>x.id===distId);
+  if(!d) return;
+  const waNumber = DB.settings.whatsapp;
+  const msg = buildWhatsappMessage(d);
+  const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(waUrl)}`;
+
+  openModal(`
+    <div class="p-6">
+      <div class="flex items-center gap-3 mb-4">
+        <img src="https://h.top4top.io/p_3881ecrwf0.jpg" class="w-10 h-10 rounded-full object-cover">
+        <div>
+          <div class="font-bold text-forest">إذن تسليم</div>
+          <div class="text-xs text-ink/40">رقم العملية: ${esc(d.id)}</div>
+        </div>
+      </div>
+      <div class="bg-white border border-line rounded-xl p-4 text-sm space-y-1.5 mb-4">
+        <div class="flex justify-between"><span class="text-ink/50">المشتري</span><span class="font-bold">${esc(d.buyerName)}</span></div>
+        <div class="flex justify-between"><span class="text-ink/50">الهاتف</span><span class="font-bold">${esc(d.phone)}</span></div>
+        <div class="flex justify-between"><span class="text-ink/50">العدد</span><span class="font-black text-barn">${d.quantity.toLocaleString('ar-EG')}</span></div>
+        <div class="flex justify-between"><span class="text-ink/50">السائق</span><span class="font-bold">${esc(d.driver)}</span></div>
+        <div class="flex justify-between"><span class="text-ink/50">التاريخ</span><span class="font-bold">${fmtDate(d.createdAt)}</span></div>
+      </div>
+      <div class="flex flex-col items-center mb-4">
+        <img src="${qrUrl}" class="w-40 h-40 rounded-lg border border-line" alt="QR">
+        <p class="text-xs text-ink/40 mt-2">امسح الكود لإرسال إيصال واتساب</p>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <a href="${waUrl}" target="_blank" class="btn flex items-center justify-center gap-2 bg-green-600 text-white font-bold py-2.5 rounded-lg hover:bg-green-700">
+          ${ICONS.whatsapp} إرسال واتساب
+        </a>
+        <button id="printSlipBtn" class="btn flex items-center justify-center gap-2 bg-forest text-cream font-bold py-2.5 rounded-lg hover:bg-forest-light">
+          ${ICONS.print} طباعة الإذن
+        </button>
+      </div>
+      <button id="closeSlipModal" class="w-full text-center text-xs text-ink/40 mt-4 hover:underline">إغلاق</button>
+    </div>`);
+
+  document.getElementById('closeSlipModal').addEventListener('click', closeModal);
+  document.getElementById('printSlipBtn').addEventListener('click', ()=>printSlip(d, qrUrl));
+}
+
+function printSlip(d, qrUrl){
+  const area = document.getElementById('printArea');
+  area.innerHTML = `
+  <div style="font-family:'Tajawal',sans-serif; direction:rtl; padding:32px; max-width:720px; margin:0 auto;">
+    <div style="display:flex; align-items:center; gap:12px; border-bottom:3px solid #16342A; padding-bottom:16px; margin-bottom:20px;">
+      <img src="https://h.top4top.io/p_3881ecrwf0.jpg" style="width:56px;height:56px;border-radius:50%;object-fit:cover;">
+      <div>
+        <div style="font-size:22px; font-weight:800; color:#16342A;">Pure Line</div>
+        <div style="font-size:13px; color:#666;">إذن تسليم كتاكيت رومي</div>
+      </div>
+      <div style="margin-inline-start:auto; text-align:left; font-size:12px; color:#666;">
+        رقم العملية<br><b style="color:#16342A;">${esc(d.id)}</b>
+      </div>
+    </div>
+    <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:20px;">
+      <tr><td style="padding:8px 0; color:#666; width:40%;">اسم المشتري</td><td style="padding:8px 0; font-weight:700;">${esc(d.buyerName)}</td></tr>
+      <tr style="border-top:1px solid #eee;"><td style="padding:8px 0; color:#666;">رقم الهاتف</td><td style="padding:8px 0; font-weight:700;">${esc(d.phone)}</td></tr>
+      <tr style="border-top:1px solid #eee;"><td style="padding:8px 0; color:#666;">العدد المسلّم</td><td style="padding:8px 0; font-weight:800; color:#8C3B2E;">${d.quantity.toLocaleString('ar-EG')}</td></tr>
+      <tr style="border-top:1px solid #eee;"><td style="padding:8px 0; color:#666;">اسم السائق / السيارة</td><td style="padding:8px 0; font-weight:700;">${esc(d.driver)}</td></tr>
+      <tr style="border-top:1px solid #eee;"><td style="padding:8px 0; color:#666;">التاريخ والوقت</td><td style="padding:8px 0; font-weight:700;">${fmtDate(d.createdAt)}</td></tr>
+      ${d.notes? `<tr style="border-top:1px solid #eee;"><td style="padding:8px 0; color:#666;">ملاحظات</td><td style="padding:8px 0;">${esc(d.notes)}</td></tr>`:''}
+    </table>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:32px;">
+      <div style="font-size:12px; color:#666; max-width:60%;">${esc(DB.settings.deliveryTerms)}</div>
+      <img src="${qrUrl}" style="width:110px;height:110px;">
+    </div>
+    <div style="display:flex; justify-content:space-between; margin-top:40px;">
+      <div style="width:45%; text-align:center;">
+        <div style="border-top:1px solid #999; padding-top:6px; font-size:12px; color:#666;">توقيع السائق</div>
+      </div>
+      <div style="width:45%; text-align:center;">
+        <div style="border-top:1px solid #999; padding-top:6px; font-size:12px; color:#666;">توقيع المستلم</div>
+      </div>
+    </div>
+  </div>`;
+  window.print();
+}
+
+/* -------------------------------- CSV export -------------------------------- */
+function exportCsv(){
+  const type = document.getElementById('recType').value;
+  const cols = recordColumns(type);
+  const rows = [...DB[type]].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const header = cols.map(c=>c.l).join(',');
+  const lines = rows.map(r => cols.map(c=>{
+    const v = c.fmt ? c.fmt(r[c.k]) : (r[c.k] ?? '');
+    return `"${String(v).replace(/"/g,'""')}"`;
+  }).join(','));
+  const csv = '\uFEFF' + [header, ...lines].join('\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `pureline_${type}_${Date.now()}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  logAudit('تصدير بيانات', type, `تم تصدير ${rows.length} سجل إلى CSV`);
+}
+
+/* -------------------------------- init -------------------------------- */
+if(CURRENT_USER){ boot(); }
+</script>
+</body>
+</html>
