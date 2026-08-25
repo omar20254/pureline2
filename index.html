@@ -196,12 +196,20 @@ function saveDB(db){
 }
 
 // المزامنة اللحظية مع الفايربيس
+let hasSyncedFromServer = false;
 onSnapshot(PURE_LINE_DOC, (snapshot) => {
   if (snapshot.exists()) {
     DB = snapshot.data();
-  } else {
+    hasSyncedFromServer = true;
+  } else if (!snapshot.metadata.fromCache) {
+    // السيرفر (مش الكاش المحلي) أكّد إن المستند غير موجود فعليًا — آمن نعمل تهيئة أولى فقط.
     DB = seedDB();
     saveDB(DB);
+    hasSyncedFromServer = true;
+  } else {
+    // النتيجة دي جاية من كاش محلي فاضي (مثلاً الاتصال بطيء أو منقطع لحظيًا) ومش مؤكدة من السيرفر.
+    // لازم ننتظر رد السيرفر الحقيقي وميتاش نعمل seed أو نكتب فوق البيانات الحقيقية بالغلط.
+    return;
   }
   const statusEl = document.getElementById('cloudStatusText');
   if(statusEl) statusEl.textContent = 'متصل بالسحابة — البيانات محفوظة';
@@ -234,21 +242,24 @@ const GRADE_FIELDS = [
   { k:'laih',    l:'لايح' },
   { k:'farza',   l:'فرزة' },
   { k:'fates',   l:'فاطس' },
-  { k:'maadoom', l:'معدوم' },
-  { k:'mrsous',  l:'مرصوص' }
+  { k:'maadoom', l:'معدوم' }
 ];
 
+function batchTotal(b){
+  return Number(b.mrsous) || Number(b.quantity) || GRADE_FIELDS.reduce((s,g)=>s+Number(b[g.k]||0),0);
+}
+
 function batchGradeBreakdown(b){
-  const total = Number(b.quantity) || GRADE_FIELDS.reduce((s,g)=>s+Number(b[g.k]||0),0);
+  const total = batchTotal(b);
   return GRADE_FIELDS.map(g=>{
     const val = Number(b[g.k]||0);
     return { label:g.l, val, pct: total>0 ? (val/total*100) : 0 };
   });
 }
 
-// fmt helper for the records table / CSV export: shows count + its % of the batch total
+// fmt helper for the records table / CSV export: shows count + its % of المرصوص (batch total)
 function gradeCell(val, row){
-  const total = row ? (Number(row.quantity) || GRADE_FIELDS.reduce((s,g)=>s+Number(row[g.k]||0),0)) : 0;
+  const total = row ? batchTotal(row) : 0;
   const v = Number(val||0);
   const pct = total>0 ? (v/total*100).toFixed(1) : '0.0';
   return `${v.toLocaleString('ar-EG')} (${pct}%)`;
@@ -498,8 +509,12 @@ function renderReceive(){
           <label class="text-xs font-bold text-ink/60">مصدر المعمل / المفرخة</label>
           <input name="source" required class="w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="اسم المعمل">
         </div>
+        <div>
+          <label class="text-xs font-bold text-ink/60">المرصوص (الإجمالي المستلم)</label>
+          <input name="mrsous" type="number" min="1" required class="receive-grade-input w-full border border-line rounded-lg px-3 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-wheat" placeholder="0">
+        </div>
         <div class="feather-divider !opacity-40 my-2"></div>
-        <p class="text-xs font-bold text-forest">تصنيف الدفعة عند الفرز</p>
+        <p class="text-xs font-bold text-forest">تصنيف الدفعة عند الفرز (نسبة % من المرصوص)</p>
         <div class="grid grid-cols-2 gap-2">
           ${GRADE_FIELDS.map(g=>`
           <div>
@@ -509,9 +524,10 @@ function renderReceive(){
         </div>
         <div class="bg-wheat/10 border border-wheat/30 rounded-lg p-3 text-xs space-y-1.5">
           <div class="flex justify-between font-bold text-forest text-sm">
-            <span>إجمالي الكمية المستلمة</span><span id="receiveTotalQty">0</span>
+            <span>إجمالي التصنيفات المُدخلة</span><span id="receiveTotalQty">0</span>
           </div>
           <div id="receivePercentBreakdown" class="space-y-1 text-ink/60"></div>
+          <div id="receiveMismatchWarn" class="hidden text-barn font-bold pt-1"></div>
         </div>
         <div>
           <label class="text-xs font-bold text-ink/60">ملاحظات</label>
@@ -531,7 +547,7 @@ function renderReceive(){
       <div class="overflow-x-auto">
       <table class="w-full text-sm text-right">
         <thead><tr class="text-ink/50 border-b border-line">
-          <th class="py-2">رقم الدفعة</th><th>المصدر</th><th>الإجمالي</th><th>التاريخ</th><th></th>
+          <th class="py-2">رقم الدفعة</th><th>المصدر</th><th>المرصوص</th><th>التاريخ</th><th></th>
         </tr></thead>
         <tbody>
         ${rows.length===0? `<tr><td colspan="5" class="py-6 text-center text-ink/40">لا توجد دفعات بعد</td></tr>` :
@@ -553,17 +569,27 @@ function renderReceive(){
 function updateReceiveTotals(){
   const form = document.getElementById('receiveForm');
   if(!form) return;
+  const mrsous = Number(form.mrsous?.value)||0;
   const values = GRADE_FIELDS.map(g=>Number(form[g.k]?.value)||0);
-  const total = values.reduce((s,v)=>s+v,0);
+  const sum = values.reduce((s,v)=>s+v,0);
   const totalEl = document.getElementById('receiveTotalQty');
-  if(totalEl) totalEl.textContent = total.toLocaleString('ar-EG');
+  if(totalEl) totalEl.textContent = sum.toLocaleString('ar-EG');
   const box = document.getElementById('receivePercentBreakdown');
   if(box){
     box.innerHTML = GRADE_FIELDS.map((g,i)=>{
       const val = values[i];
-      const pct = total>0 ? (val/total*100).toFixed(1) : '0.0';
+      const pct = mrsous>0 ? (val/mrsous*100).toFixed(1) : '0.0';
       return `<div class="flex justify-between"><span>${g.l}</span><span>${val.toLocaleString('ar-EG')} — ${pct}%</span></div>`;
     }).join('');
+  }
+  const warn = document.getElementById('receiveMismatchWarn');
+  if(warn){
+    if(mrsous>0 && sum>0 && sum!==mrsous){
+      warn.textContent = `تنبيه: مجموع التصنيفات (${sum.toLocaleString('ar-EG')}) لا يساوي المرصوص (${mrsous.toLocaleString('ar-EG')})`;
+      warn.classList.remove('hidden');
+    } else {
+      warn.classList.add('hidden');
+    }
   }
 }
 
@@ -571,11 +597,11 @@ function openBatchGradeModal(batchId){
   const b = DB.batches.find(x=>x.id===batchId);
   if(!b) return;
   const items = batchGradeBreakdown(b);
-  const barColors = { 'سليم':'#16342A', 'لايح':'#C89B3C', 'فرزة':'#E6C878', 'فاطس':'#8C3B2E', 'معدوم':'#6B7280', 'مرصوص':'#4A5568' };
+  const barColors = { 'سليم':'#16342A', 'لايح':'#C89B3C', 'فرزة':'#E6C878', 'فاطس':'#8C3B2E', 'معدوم':'#6B7280' };
   openModal(`
     <div class="p-6">
       <h3 class="font-bold text-forest text-lg mb-1">نسب فرز الدفعة</h3>
-      <p class="text-xs text-ink/40 mb-4">${esc(b.batchNumber)} — إجمالي ${Number(b.quantity).toLocaleString('ar-EG')}</p>
+      <p class="text-xs text-ink/40 mb-4">${esc(b.batchNumber)} — المرصوص ${batchTotal(b).toLocaleString('ar-EG')}</p>
       <div class="space-y-3">
         ${items.map(it=>`
           <div>
@@ -599,16 +625,16 @@ function exportBatchesExcel(){
     return;
   }
   const rows = [...DB.batches].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-  const header = ['رقم الدفعة','المصدر', ...GRADE_FIELDS.flatMap(g=>[g.l, `نسبة ${g.l} %`]), 'الإجمالي','التاريخ','ملاحظات'];
+  const header = ['رقم الدفعة','المصدر','المرصوص (الإجمالي)', ...GRADE_FIELDS.flatMap(g=>[g.l, `نسبة ${g.l} %`]), 'التاريخ','ملاحظات'];
   const data = rows.map(b=>{
-    const total = Number(b.quantity) || GRADE_FIELDS.reduce((s,g)=>s+Number(b[g.k]||0),0);
-    const cells = [b.batchNumber, b.source];
+    const total = batchTotal(b);
+    const cells = [b.batchNumber, b.source, total];
     GRADE_FIELDS.forEach(g=>{
       const val = Number(b[g.k]||0);
       const pct = total>0 ? Number((val/total*100).toFixed(1)) : 0;
       cells.push(val, pct);
     });
-    cells.push(total, fmtDate(b.createdAt), b.notes||'');
+    cells.push(fmtDate(b.createdAt), b.notes||'');
     return cells;
   });
   const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
@@ -638,24 +664,24 @@ function printBatchesReport(){
         <tr style="background:#F5F1E6;">
           <th style="padding:6px; text-align:right;">الدفعة</th>
           <th style="padding:6px; text-align:right;">المصدر</th>
+          <th style="padding:6px;">المرصوص</th>
           ${GRADE_FIELDS.map(g=>`<th style="padding:6px;">${g.l}</th>`).join('')}
-          <th style="padding:6px;">الإجمالي</th>
           <th style="padding:6px;">التاريخ</th>
         </tr>
       </thead>
       <tbody>
-        ${rows.length===0? `<tr><td colspan="${3+GRADE_FIELDS.length}" style="padding:16px; text-align:center; color:#999;">لا توجد دفعات بعد</td></tr>` :
+        ${rows.length===0? `<tr><td colspan="${4+GRADE_FIELDS.length}" style="padding:16px; text-align:center; color:#999;">لا توجد دفعات بعد</td></tr>` :
         rows.map(b=>{
-          const total = Number(b.quantity) || GRADE_FIELDS.reduce((s,g)=>s+Number(b[g.k]||0),0);
+          const total = batchTotal(b);
           return `<tr style="border-top:1px solid #eee;">
             <td style="padding:6px; font-weight:700;">${esc(b.batchNumber)}</td>
             <td style="padding:6px;">${esc(b.source)}</td>
+            <td style="padding:6px; text-align:center; font-weight:800; color:#8C3B2E;">${total.toLocaleString('ar-EG')}</td>
             ${GRADE_FIELDS.map(g=>{
               const val = Number(b[g.k]||0);
               const pct = total>0 ? (val/total*100).toFixed(1) : '0.0';
               return `<td style="padding:6px; text-align:center;">${val.toLocaleString('ar-EG')}<br><span style="color:#999;">${pct}%</span></td>`;
             }).join('')}
-            <td style="padding:6px; text-align:center; font-weight:800; color:#8C3B2E;">${total.toLocaleString('ar-EG')}</td>
             <td style="padding:6px; text-align:center; color:#666;">${fmtDate(b.createdAt)}</td>
           </tr>`;
         }).join('')}
@@ -812,8 +838,8 @@ function recordColumns(type){
   ];
   if(type==='batches') return [
     {k:'batchNumber', l:'رقم الدفعة'}, {k:'source', l:'المصدر'},
+    {k:'mrsous', l:'المرصوص (الإجمالي)'},
     ...GRADE_FIELDS.map(g=>({k:g.k, l:g.l, fmt:gradeCell})),
-    {k:'quantity', l:'الإجمالي'},
     {k:'notes', l:'ملاحظات'}, {k:'createdAt', l:'التاريخ', fmt:fmtDate}
   ];
   return [
@@ -931,9 +957,9 @@ function openEditRecord(type, id){
     e.preventDefault();
     const fd = new FormData(e.target);
     const before = JSON.stringify(rec);
-    const numericKeys = ['quantity', ...GRADE_FIELDS.map(g=>g.k)];
+    const numericKeys = ['quantity', 'mrsous', ...GRADE_FIELDS.map(g=>g.k)];
     for(const [k,v] of fd.entries()){ rec[k] = numericKeys.includes(k) ? Number(v)||0 : v; }
-    if(type==='batches'){ rec.quantity = GRADE_FIELDS.reduce((s,g)=>s+Number(rec[g.k]||0),0); }
+    if(type==='batches'){ rec.quantity = Number(rec.mrsous)||0; }
     if(showPhoto){ rec.photo = editPhotoData; }
     saveDB(DB);
     logAudit('تعديل سجل', type, `${id} — قبل: ${before}`);
@@ -1034,6 +1060,15 @@ function renderOwner(){
           </div>`).join('')}
       </div>
     </div>
+    <div class="card p-5">
+      <h3 class="font-bold text-forest mb-1">نسخة احتياطية للبيانات</h3>
+      <p class="text-xs text-ink/50 mb-4">نزّل نسخة كاملة من البيانات بانتظام (يفضّل أسبوعيًا)، عشان لو حصلت أي مشكلة في المزامنة السحابية تقدر تستعيد بياناتك فورًا من جهازك.</p>
+      <button id="downloadBackupBtn" class="btn w-full bg-forest text-cream font-bold py-2.5 rounded-lg hover:bg-forest-light mb-2">تنزيل نسخة احتياطية الآن (JSON)</button>
+      <label for="restoreBackupInput" class="btn w-full flex items-center justify-center border border-dashed border-line font-bold py-2.5 rounded-lg hover:bg-cream text-sm cursor-pointer">استعادة نسخة احتياطية من ملف</label>
+      <input id="restoreBackupInput" type="file" accept="application/json" class="hidden">
+      <p class="text-xs text-barn font-bold mt-2">تنبيه: استعادة نسخة احتياطية هتستبدل كل البيانات الحالية على السحابة بالكامل.</p>
+    </div>
+
   </div>`;
 }
 
@@ -1057,27 +1092,28 @@ function attachViewHandlers(key){
     document.getElementById('receiveForm').addEventListener('submit', (e)=>{
       e.preventDefault();
       const fd = new FormData(e.target);
-      const grades = {};
-      GRADE_FIELDS.forEach(g=>{ grades[g.k] = Number(fd.get(g.k))||0; });
-      const total = GRADE_FIELDS.reduce((s,g)=>s+grades[g.k],0);
-      if(total<=0){
-        toast('ادخل كمية في تصنيف واحد على الأقل (سليم، لايح، فرزة، فاطس، معدوم)', 'err');
+      const mrsous = Number(fd.get('mrsous'))||0;
+      if(mrsous<=0){
+        toast('ادخل قيمة المرصوص (الإجمالي المستلم)', 'err');
         return;
       }
+      const grades = {};
+      GRADE_FIELDS.forEach(g=>{ grades[g.k] = Number(fd.get(g.k))||0; });
       const rec = {
         id: uid('BAT'),
         batchNumber: fd.get('batchNumber').trim(),
         source: fd.get('source').trim(),
+        mrsous,
         ...grades,
-        quantity: total,
+        quantity: mrsous,
         notes: fd.get('notes').trim(),
         createdBy: CURRENT_USER.username,
         createdAt: nowISO()
       };
       DB.batches.push(rec);
       saveDB(DB);
-      const detail = GRADE_FIELDS.map(g=>`${g.l} ${grades[g.k]} (${total>0?(grades[g.k]/total*100).toFixed(1):'0.0'}%)`).join('، ');
-      logAudit('استلام دفعة', 'batches', `دفعة ${rec.batchNumber} — إجمالي ${rec.quantity} | ${detail}`);
+      const detail = GRADE_FIELDS.map(g=>`${g.l} ${grades[g.k]} (${mrsous>0?(grades[g.k]/mrsous*100).toFixed(1):'0.0'}%)`).join('، ');
+      logAudit('استلام دفعة', 'batches', `دفعة ${rec.batchNumber} — المرصوص ${mrsous} | ${detail}`);
       toast('تم تسجيل الدفعة وإضافتها للمخزون');
       navigate('receive');
     });
@@ -1187,6 +1223,40 @@ function attachViewHandlers(key){
       logAudit('مزامنة يدوية', 'settings', 'تمت المزامنة يدويًا');
       toast('تمت المزامنة بنجاح');
       navigate('owner');
+    });
+    document.getElementById('downloadBackupBtn').addEventListener('click', ()=>{
+      const json = JSON.stringify(DB, null, 2);
+      const blob = new Blob([json], { type:'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `pureline_backup_${Date.now()}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      logAudit('تنزيل نسخة احتياطية', 'settings', 'تم تنزيل نسخة احتياطية كاملة من البيانات');
+      toast('تم تنزيل النسخة الاحتياطية');
+    });
+    document.getElementById('restoreBackupInput').addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        let parsed;
+        try{ parsed = JSON.parse(reader.result); }
+        catch(err){ toast('ملف النسخة الاحتياطية غير صالح', 'err'); e.target.value=''; return; }
+        if(!parsed || !Array.isArray(parsed.batches) || !Array.isArray(parsed.distributions) || !Array.isArray(parsed.users)){
+          toast('ملف النسخة الاحتياطية غير صالح', 'err'); e.target.value=''; return;
+        }
+        if(!confirm('هل أنت متأكد؟ هذا الإجراء سيستبدل كل البيانات الحالية على السحابة بمحتوى النسخة الاحتياطية.')){
+          e.target.value=''; return;
+        }
+        DB = parsed;
+        saveDB(DB);
+        logAudit('استعادة نسخة احتياطية', 'settings', `تم استعادة نسخة احتياطية من ملف: ${file.name}`);
+        toast('تم استعادة النسخة الاحتياطية بنجاح');
+        e.target.value='';
+        navigate('owner');
+      };
+      reader.readAsText(file);
     });
     document.getElementById('settingsForm').addEventListener('submit', (e)=>{
       e.preventDefault();
